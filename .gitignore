@@ -1,0 +1,18 @@
+*
+# Python
+!*.pyc
+!*.py
+!*.pyo
+!*.pyd
+
+# Jupyter
+!.ipynb_checkpoints/
+!*.ipynb
+
+# VSCode
+!.vscode/
+!*.code-workspace
+
+# JetBrains IDEs (e.g., PyCharm)
+!.idea/
+!*.iml
