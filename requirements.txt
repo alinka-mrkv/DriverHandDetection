@@ -1,0 +1,8 @@
+
+mediapipe==0.10.0
+opencv-python==4.6.0.66
+numpy==1.21.2
+matplotlib==3.4.3
+sympy==1.7.1
+
+This file lists all the Python libraries that the script depends on. The version numbers are optional; if not specified, pip will install the latest version of each library. However, specifying the version numbers ensures that the script will run with the same versions of the libraries that it was tested with, which can help avoid compatibility issues.
