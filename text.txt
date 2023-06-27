@@ -1,0 +1,19 @@
+abc
+
+123
+
+456
+
+789
+
+print
+
+section        .text         
+global         _start          
+_start:
+    mov edx, len 
+    mov ecx, msg 
+    mov ebx, 1
+section        .data             
+    msg        db "Hello world!", 0xa 
+    len        equ $ -msg
