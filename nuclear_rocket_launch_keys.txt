@@ -1,0 +1,19 @@
+ 8731231a0ec5b4b9858770ed29990263c9501bf4813bf1d141bb20297552f014d3c8c6200f3a3155991970c364b92351e7daa14
+
+print
+
+input
+
+print
+
+exit
+
+download
+
+run
+
+stop
+
+abc
+
+xyz
