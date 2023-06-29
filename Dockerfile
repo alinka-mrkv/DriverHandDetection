@@ -29,3 +29,19 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && apt-get install -y --no-install-recommends sudo \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
+COPY main.py .
+COPY video.mp4 .
+
+RUN apt-get update && apt-get install -y \
+    libxkbcommon-x11-0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-xinerama0 \
+    libxcb-xfixes0 \
+    qt5-gtk-platformtheme
+
+
+CMD ["python3", "main.py", "-v", "video.mp4"]
