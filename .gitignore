@@ -4,6 +4,7 @@
 !*.py
 !*.pyo
 !*.pyd
+!*.task
 
 # Jupyter
 !.ipynb_checkpoints/
