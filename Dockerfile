@@ -19,10 +19,13 @@ RUN apt-get update \
     libxcb-xfixes0 \
     qt5-gtk-platformtheme
 
-COPY pose_landmarker_heavy.task .
 COPY main.py .
 COPY video.mp4 .
 COPY requirements.txt .
+COPY pose_landmarker_lite.task .
+COPY model_detection.py .
+COPY plane_detection.py .
+COPY intersection_result.py .
 
 RUN apt-get install -y python3-pip
 
