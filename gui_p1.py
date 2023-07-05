@@ -1,6 +1,7 @@
 import argparse
 import cv2
 import numpy as np
+from enum import Enum
 
 
 class VideoGUI:
@@ -11,9 +12,8 @@ class VideoGUI:
         self.frame = None
         self.cursor_positions = []
         self.saved_convex_shape = []
-        self.saved = False
-        self.ROI_MODE = False
-        self.DET_MODE = False
+        self.shape_is_saved = False
+        self.mode = AppMode.PLAY
         self.frame_copy = None
 
     def init_video_gui(self):
@@ -34,7 +34,7 @@ class VideoGUI:
         cv2.destroyAllWindows()
 
     def mouse_callback(self, event, x, y, flags, param):
-        if self.ROI_MODE:
+        if self.mode == AppMode.REGION_OF_INTEREST:
             if event == cv2.EVENT_LBUTTONDOWN:
                 if len(self.cursor_positions) == 10:
                     self.cursor_positions.pop(0)
@@ -42,24 +42,26 @@ class VideoGUI:
             elif event == cv2.EVENT_RBUTTONDOWN and self.cursor_positions:
                 self.cursor_positions.pop()
 
+    def set_mode(self, mode):
+        self.mode = mode
+
     def key_handler(self):
         key = cv2.waitKey(1) & 0xFF
 
         if key == 32:
-            self.ROI_MODE = not self.ROI_MODE
-            self.DET_MODE = False
-            if self.ROI_MODE:
-                print("ROI_MODE enabled!")
+            if self.mode == AppMode.REGION_OF_INTEREST:
+                self.mode = AppMode.PLAY
+            else:
+                self.set_mode(AppMode.REGION_OF_INTEREST)
+                print("Region of interest mode enabled!")
         elif key == 13:
             if is_convex(self.cursor_positions):
-                if self.ROI_MODE:
+                if self.mode == AppMode.REGION_OF_INTEREST:
                     print("Convex shape saved successfully!")
                     self.saved_convex_shape = self.cursor_positions
-                    self.saved = True
-                    self.ROI_MODE = False
-                    self.DET_MODE = not self.DET_MODE
-                    if self.DET_MODE:
-                        print("DET_MODE enabled!")
+                    self.shape_is_saved = True
+                    self.set_mode(AppMode.DETECTION)
+                    print("Detection mode enabled!")
         elif key == 27:
             print("User chose to exit.")
             return "exit"
@@ -132,14 +134,20 @@ def det_mode():
 def run_video_gui(gui):
     gui.init_video_gui()
     while gui.key_handler() != "exit":
-        if gui.ROI_MODE:
+        if gui.mode == AppMode.REGION_OF_INTEREST:
             gui.roi_mode()
-        elif gui.DET_MODE:
+        elif gui.mode == AppMode.DETECTION:
             det_mode()
         else:
             gui.play_mode()
 
     gui.terminate_video_gui()
+
+
+class AppMode(Enum):
+    PLAY = 0
+    REGION_OF_INTEREST = 1
+    DETECTION = 2
 
 
 if __name__ == "__main__":
