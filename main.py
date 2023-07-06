@@ -1,87 +1,248 @@
 import argparse
-from mediapipe import solutions
-from mediapipe.framework.formats import landmark_pb2
-import numpy as np
 import cv2
-import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
+import numpy as np
+from datetime import datetime
+from model_detection import ModelDetection
+from plane_detection import PlaneDetection
+import matplotlib.pyplot as plt
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description='Need to enter video file path')
-    parser.add_argument('-v', '--video', type=str, required=True, help='Path to video file')
+class VideoGUI:
+    def __init__(self, video_path):
+        self.video_path = video_path
+        self.cap = None
+        self.frame_count = 0
+        self.frame = None
+        self.cursor_positions = []
+        self.saved_convex_shape = []
+        self.saved = False
+        self.ROI_MODE = False
+        self.DET_MODE = False
+        self.frame_copy = None
+
+    def init_video_gui(self):
+        self.cap = cv2.VideoCapture(self.video_path)
+
+        if not self.cap.isOpened():
+            print("Error opening video file.")
+            exit(-1)
+
+        cv2.namedWindow("GUI")
+        cv2.setMouseCallback("GUI", self.mouse_callback)
+
+        self.frame_count = 0
+        self.frame = None
+        video_file_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        return video_file_fps
+
+    def terminate_video_gui(self):
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+    def mouse_callback(self, event, x, y, flags, param):
+        if self.ROI_MODE:
+            if event == cv2.EVENT_LBUTTONDOWN:
+                if len(self.cursor_positions) == 10:
+                    self.cursor_positions.pop(0)
+                self.cursor_positions.append((x, y))
+            elif event == cv2.EVENT_RBUTTONDOWN and self.cursor_positions:
+                self.cursor_positions.pop()
+
+    def key_handler(self):
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == 32:
+            self.ROI_MODE = not self.ROI_MODE
+            self.DET_MODE = False
+            if self.ROI_MODE:
+                print("ROI_MODE enabled!")
+        elif key == 13:
+            if is_convex(self.cursor_positions):
+                print("Convex shape saved successfully!")
+                self.saved_convex_shape = self.cursor_positions
+                self.saved = True
+                self.ROI_MODE = False
+                self.DET_MODE = not self.DET_MODE
+                if self.DET_MODE:
+                    print("DET_MODE enabled!")
+        elif key == 27:
+            print("User chose to exit.")
+            return "exit"
+
+    def draw_positions(self, current_frame, positions):
+        for pos in positions:
+            cv2.circle(current_frame, pos, 5, (255, 0, 0), -1)
+
+    def draw_connections(self, current_frame):
+        if len(self.cursor_positions) > 1:
+            for i in range(len(self.cursor_positions) - 1):
+                cv2.line(
+                    current_frame,
+                    self.cursor_positions[i],
+                    self.cursor_positions[i + 1],
+                    (212, 255, 127),
+                    2,
+                )
+            if len(self.cursor_positions) > 2:
+                cv2.line(
+                    current_frame,
+                    self.cursor_positions[-1],
+                    self.cursor_positions[0],
+                    (212, 255, 127),
+                    2,
+                )
+
+    def draw_roi(self, current_frame):
+        self.frame_copy = current_frame.copy()
+        self.draw_positions(self.frame_copy, self.cursor_positions)
+        self.draw_connections(self.frame_copy)
+        if not is_convex(self.cursor_positions):
+            draw_text_on_frame(self.frame_copy, "Shape must be convex to save!", 300, 160)
+        return self.frame_copy
+
+    def roi_mode(self):
+        self.frame_copy = self.draw_roi(self.frame)
+        cv2.imshow("GUI", self.frame_copy)
+
+    def play_mode(self):
+        cv2.imshow("GUI", self.frame)
+        ret, self.frame = self.cap.read()
+        if not ret:
+            print("Error reading video frame.")
+            exit(-1)
+        self.frame_count += 1
+
+
+def draw_text_on_frame(current_frame, text, x, y):
+    cv2.putText(
+        current_frame,
+        text,
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1.5,
+        (0, 0, 255),
+        2,
+    )
+
+
+def is_convex(positions):
+    if len(positions) > 2:
+        return cv2.isContourConvex(np.array(positions))
+    else:
+        return False
+
+
+def parse_argument():
+    parser = argparse.ArgumentParser(description="Need to enter video file path")
+    parser.add_argument("-v", "--video", type=str, required=True, help="Path to video file")
 
     args = parser.parse_args()
     return args.video
 
 
-def create_detector():
-    BaseOptions = mp.tasks.BaseOptions
-    VisionRunningMode = mp.tasks.vision.RunningMode
-    model_path = 'pose_landmarker_heavy.task'
-    options = vision.PoseLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=model_path),
-        running_mode=VisionRunningMode.VIDEO,
+def text_on_image(fps_value, inf_time, img, plane_detect):
+    text_fps = f"FPS: {fps_value}"
+    text_inf = f"inf.time: {inf_time} ms"
+    if plane_detect.intersection_status:
+        text_status = f"status: crossed"
+    else:
+        text_status = f"status: not"
+    color = (200, 112, 219)
+    cv2.putText(
+        img,
+        text_fps,
+        (15, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        color,
+        2,
     )
-    pose_detector = vision.PoseLandmarker.create_from_options(options)
-    return pose_detector
+    cv2.putText(
+        img,
+        text_inf,
+        (15, 50),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        color,
+        2,
+    )
+    cv2.putText(
+        img,
+        text_status,
+        (15, 70),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        color,
+        2,
+    )
 
 
-def annotate_image_with_landmarks(rgb_image, pose_detections):
-    pose_landmarks_list = pose_detections.pose_landmarks
-    annotated_image = np.copy(rgb_image)
-
-    for idx in range(len(pose_landmarks_list)):
-        pose_landmarks = pose_landmarks_list[idx]
-
-        pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-        pose_landmarks_proto.landmark.extend([
-            landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in pose_landmarks
-        ])
-        solutions.drawing_utils.draw_landmarks(
-            annotated_image,
-            pose_landmarks_proto,
-            solutions.pose.POSE_CONNECTIONS,
-            solutions.drawing_styles.get_default_pose_landmarks_style())
-    return annotated_image
+def draw_skeleton(gui, model_detector, plane_detect):
+    coord = model_detector.to_find_driver_px_coord(gui.frame, plane_detect)
+    if coord:
+        gui.draw_positions(gui.frame, coord)
+        for start, end in model_detector.POSE_CONNECTIONS:
+            if start < len(coord) and end < len(coord):
+                cv2.line(gui.frame, coord[start], coord[end], (0, 0, 255), 2)
 
 
-def process_video_with_landmarks(path):
-    if path:
-        cap = cv2.VideoCapture(video_path)
-
-        if not cap.isOpened():
-            print("Error opening video file.")
-            exit(-1)
-
-        video_file_fps = cap.get(cv2.CAP_PROP_FPS)
-        frame_count = 0
-
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame_timestamp_ms = int(1000 * frame_count / video_file_fps)
-
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-            pose_landmarker_result = detector.detect_for_video(mp_image, frame_timestamp_ms)
-            annotated_image = annotate_image_with_landmarks(frame, pose_landmarker_result)
-            cv2.imshow('annotated_image', annotated_image)
-
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
-
-            frame_count += 1
-
-        cap.release()
-        cv2.destroyAllWindows()
+def display(gui, video_file_fps, fps, model_detector, detector, plane_detect):
+    infer_time = model_detector.determine_skeleton_and_inference_time(
+        gui.frame, gui.frame_count, video_file_fps, detector, plane_detect
+    )
+    draw_skeleton(gui, model_detector, plane_detect)
+    text_on_image(fps, infer_time, gui.frame, plane_detect)
 
 
-if __name__ == '__main__':
+def det_mode(gui, plane_detect):
+    gui.draw_positions(gui.frame, gui.cursor_positions)
+    gui.draw_connections(gui.frame)
+    frame_height, frame_width, _ = gui.frame.shape
+    intersection_result = plane_detect.result_of_finding_intersection(gui.cursor_positions, frame_height, frame_width)
+    if intersection_result is not None:
+        plt_img = intersection_result.get_image()
+        h, w, _ = plt_img.shape
+        y_offset, x_offset = frame_height - h, 0
+        gui.frame[y_offset : y_offset + h, x_offset : x_offset + w] = plt_img
 
-    detector = create_detector()
-    video_path = parse_arguments()
-    process_video_with_landmarks(video_path)
+    return gui.frame
 
+
+def run_video_gui(gui, model_detector, plane_detect):
+    # fig = plt.figure(figsize=[3, 3])
+    video_file_fps = gui.init_video_gui()
+    timer = datetime.now()
+
+    detector = model_detector.create_detector()
+
+    ret, gui.frame = gui.cap.read()
+    while gui.key_handler() != "exit":
+        plane_detect.intersection_status = False
+        delta = datetime.now() - timer
+        fps = int(1.0 / max(0.0001, delta.total_seconds()))
+        timer = datetime.now()
+
+        if gui.ROI_MODE:
+            gui.roi_mode()
+        else:
+            if gui.saved and gui.DET_MODE:
+
+                gui.frame = det_mode(gui, plane_detect)
+                display(gui, video_file_fps, fps, model_detector, detector, plane_detect)
+            else:
+                display(gui, video_file_fps, fps, model_detector, detector, plane_detect)
+            gui.play_mode()
+
+    gui.terminate_video_gui()
+
+
+def main():
+    video_path = parse_argument()
+    gui = VideoGUI(video_path)
+    model_detector = ModelDetection()
+    plane_detect = PlaneDetection()
+    run_video_gui(gui, model_detector, plane_detect)
+
+
+if __name__ == "__main__":
+    main()
