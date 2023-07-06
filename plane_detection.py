@@ -5,6 +5,7 @@ from shapely.geometry import Polygon, Point, LineString
 from math import sqrt
 from intersection_result import IntersectionResult
 
+
 class PlaneDetection:
     def __init__(self):
         self.normalized_landmarks = []
@@ -22,24 +23,20 @@ class PlaneDetection:
         print("Required vector is" + str(vector))
         return vector, point_elbow
 
-
     def to_find_pixel_from_world_check(self, world_coordinates, norm_coordinates, world_points):
         matrix, _ = cv2.findHomography(world_coordinates, norm_coordinates)
         norm_points = []
         for point in world_points:
             w_point = np.float32(np.array([[list(point)]]))
-            norm_points.append([
+            norm_points.append(
+                [
                     cv2.perspectiveTransform(w_point, matrix)[0][0][0],
                     cv2.perspectiveTransform(w_point, matrix)[0][0][1],
                 ]
             )
-        # print("Normalized coord plane -check")
-        # print(norm_points)
         return 0
-    
 
     def to_find_world_coord_plane(self, cursor_positions, height, width):
-        
         world_landmarks = []
         norm_landmarks = []
         for landmark in self.world_landmarks:
@@ -48,19 +45,13 @@ class PlaneDetection:
         for landmark in self.normalized_landmarks:
             for result in landmark:
                 norm_landmarks.append([result.x, result.y])
-        
+
         world_coordinates = np.array(world_landmarks, dtype=np.float32)
         norm_coordinates = np.array(norm_landmarks, dtype=np.float32)
         matrix, _ = cv2.findHomography(norm_coordinates, world_coordinates)
-        
-        # print("Pixel coord plane")
-        # print(cursor_positions)
-
         normal_c_positions = []
         for point in cursor_positions:
             normal_c_positions.append([point[0] / width, point[1] / height])
-        # print("Normalized coord plane")
-        # print(normal_c_positions)
         world_points = []
         for point in normal_c_positions:
             norm_point = np.float32(np.array([[list(point)]]))
@@ -70,9 +61,6 @@ class PlaneDetection:
                     cv2.perspectiveTransform(norm_point, matrix)[0][0][1],
                 ]
             )
-        # print("World coord plane")
-        # print(world_points)
-        #self.to_find_pixel_from_world_check(world_coordinates, norm_coordinates, world_points)
         return world_points
 
     def to_find_all_plane_coord(self, grid, cursor_positions):
@@ -85,35 +73,19 @@ class PlaneDetection:
         y_min = min(i[1] for i in grid)
         y_max = max(i[1] for i in grid)
         plane = [[x_min, y_min, -1], [x_min, y_max, -1], [x_max, y_max, 1], [x_max, y_min, 1]]
-        #plane = [[i[0], i[1], 0] for i in grid]
-
-
-        #x_sorted_grid = sorted(plane, key=itemgetter(0))
-        #count_z = len(plane)
-        #unit_segment_z = (1 - (-1)) / count_z
-        #value = 1
-
-        #for i in x_sorted_grid:
-        #    i[2] = value
-        #    value -= unit_segment_z
         plane = np.asarray(plane)
-        #print("Plane here")
-        #print(plane)
         return plane
 
     def to_find_normal(self, grid):
-        #vector_ab = grid[1] - grid[0]
-        #vector_bc = grid[2] - grid[1]
-        #normal = np.cross(vector_ab, vector_bc)  
         Сoefficient = np.vstack((grid[0], grid[1], grid[2]))
-        Result = np.ones(3) # Сделали уравнение вида Сoefficient * x = Result
+        Result = np.ones(3)  # Сделали уравнение вида Сoefficient * x = Result
         normal = np.linalg.solve(Сoefficient, Result)
         return normal
 
     def to_find_vector_to_point_on_plane(self, w_coord_human, grid, n):
-        point_on_vector = np.array(w_coord_human[n])  
-        point_A = grid[0]  
-        new_vector = point_on_vector - point_A  
+        point_on_vector = np.array(w_coord_human[n])
+        point_A = grid[0]
+        new_vector = point_on_vector - point_A
         return new_vector, point_on_vector
 
     def to_find_point_m(self, normal, new_vector, vector, point_on_vector):
@@ -123,13 +95,10 @@ class PlaneDetection:
         return dot, point_M
 
     def to_find_point_on_section_1(self, section, point_m):
-        # print(point_m)
         point_m = Point(point_m)
-        # print(section)
         line = LineString(section)
-        # print(point_m.intersects(line))
         return point_m.intersects(line)
-    
+
     def to_find_point_on_section(self, point_m, coord_1, coord_2):
         vector_m_1 = point_m - coord_1
         vector_1_2 = coord_2 - coord_1
@@ -137,13 +106,8 @@ class PlaneDetection:
         vector_1_2_length = sqrt(vector_1_2[0] ** 2 + vector_1_2[1] ** 2 + vector_1_2[2] ** 2)
         vector_m_1_length = sqrt(vector_m_1[0] ** 2 + vector_m_1[1] ** 2 + vector_m_1[2] ** 2)
         cos = dot_product / (vector_1_2_length * vector_m_1_length)
-        # print("Coordinates:")
-        # print(point_m, coord_1, coord_2)
-        value = (coord_1[0] <= point_m[0] <= coord_2[0])# and 
-                 #coord_1[1] <= point_m[1] <= coord_2[1] and 
-                 #coord_2[2] <= point_m[2] <= coord_1[2])
-        # print("Value = " + str(value))
-        return (np.isclose(cos, 1.0) and value)
+        value = coord_1[0] <= point_m[0] <= coord_2[0]
+        return np.isclose(cos, 1.0) and value
 
     def to_find_intersection_point(self, w_coord_human, grid, vector, n):
         normal = self.to_find_normal(grid)
@@ -153,7 +117,7 @@ class PlaneDetection:
         dot, point_m = self.to_find_point_m(normal, new_vector, vector, point_on_vector)
 
         if dot > 0:
-            if not self.to_find_point_on_section(point_m, np.array(w_coord_human[n]), np.array(w_coord_human[n + 2])):#self.to_find_point_on_section(np.array([w_coord_human[n], w_coord_human[n + 2]]), point_m):
+            if not self.to_find_point_on_section(point_m, np.array(w_coord_human[n]), np.array(w_coord_human[n + 2])):
                 print("The hand doesn't intersect the pseudo-window - from point check")
                 return None
             elif not Polygon(grid).contains(Point(point_m)):
@@ -190,8 +154,6 @@ class PlaneDetection:
 
             inter_elbow = self.to_find_intersection_point(w_coord_human, plane, vector_from_elbow, 13)
             inter_shoulder = self.to_find_intersection_point(w_coord_human, plane, vector_from_shoulder, 11)
-            # print(f'p_elbow {p_elbow}, should {p_shoulder},plane {plane},coord {w_coord_human}, i_e {inter_elbow},'
-            #       f'i_s {inter_shoulder}, v_e {vector_from_elbow},v_s {vector_from_shoulder}')
             return IntersectionResult(
                 p_elbow,
                 p_shoulder,

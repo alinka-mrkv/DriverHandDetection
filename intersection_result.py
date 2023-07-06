@@ -106,5 +106,3 @@ class IntersectionResult:
         plot_image = cv2.cvtColor(plot_image, cv2.COLOR_RGBA2RGB)
         plt.clf()
         return plot_image
-
-

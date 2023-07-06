@@ -34,14 +34,10 @@ class ModelDetection:
             plane_detect.world_landmarks = new_world_landmarks
         if new_landmarks:
             plane_detect.normalized_landmarks = new_landmarks
-        # print(Landmarks)
-        # print(WorldLandmarks)
         return inference_time
 
     def to_find_driver_px_coord(self, frame, plane_detect):
         normalized_landmarks = plane_detect.normalized_landmarks
-        driver_px_coordinates = plane_detect.driver_px_coordinates
-        world_landmarks_copy = plane_detect.world_landmarks_copy
         world_landmarks = plane_detect.world_landmarks
 
         height, width, _ = frame.shape
